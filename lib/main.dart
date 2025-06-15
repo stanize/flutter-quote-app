@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'dart:convert';
 import 'dart:math';
 
 void main() {
@@ -24,15 +26,8 @@ class QuoteScreen extends StatefulWidget {
 }
 
 class _QuoteScreenState extends State<QuoteScreen> {
-  final List<String> quotes = [
-    "Believe you can and you're halfway there.",
-    "The best time to plant a tree was 20 years ago. The second best time is now.",
-    "You miss 100% of the shots you don’t take.",
-    "Success is not final, failure is not fatal: It is the courage to continue that counts.",
-    "Your limitation—it’s only your imagination.",
-  ];
-
-  String currentQuote = "";
+  List<Map<String, String>> quotes = [];
+  String currentQuote = '';
   double _opacity = 1.0;
 
   final Duration fadeOutDuration = Duration(milliseconds: 1500);
@@ -42,25 +37,33 @@ class _QuoteScreenState extends State<QuoteScreen> {
   @override
   void initState() {
     super.initState();
-    currentQuote = quotes[Random().nextInt(quotes.length)];
+    loadQuotes();
+  }
+
+  Future<void> loadQuotes() async {
+    final String jsonString = await rootBundle.loadString('assets/quotes.json');
+    final List<dynamic> jsonData = jsonDecode(jsonString);
+    setState(() {
+      quotes = jsonData.cast<Map<String, dynamic>>()
+          .map((e) => {'quote': e['quote'] as String, 'author': e['author'] as String})
+          .toList();
+      currentQuote = formatQuote(quotes[Random().nextInt(quotes.length)]);
+    });
+  }
+
+  String formatQuote(Map<String, String> quoteData) {
+    return '"${quoteData['quote']}"\n\n- ${quoteData['author']}';
   }
 
   void nextQuote() async {
-    // Fade out
     setState(() {
       _opacity = 0.0;
     });
 
-    // Wait for fade-out to complete
     await Future.delayed(fadeOutDuration + delayBetween);
 
-    // Change the quote
     setState(() {
-      currentQuote = quotes[Random().nextInt(quotes.length)];
-    });
-
-    // Fade in
-    setState(() {
+      currentQuote = formatQuote(quotes[Random().nextInt(quotes.length)]);
       _opacity = 1.0;
     });
   }
@@ -72,7 +75,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
         title: Text('Daily Inspiration'),
       ),
       body: InkWell(
-        onTap: nextQuote,
+        onTap: quotes.isNotEmpty ? nextQuote : null,
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
         child: Container(
@@ -80,7 +83,9 @@ class _QuoteScreenState extends State<QuoteScreen> {
           height: double.infinity,
           padding: const EdgeInsets.all(24.0),
           child: Center(
-            child: AnimatedOpacity(
+            child: quotes.isEmpty
+                ? CircularProgressIndicator()
+                : AnimatedOpacity(
               opacity: _opacity,
               duration: _opacity == 0.0 ? fadeOutDuration : fadeInDuration,
               curve: Curves.easeInOut,
